@@ -1,0 +1,10 @@
+import Html.tags.*
+
+main =
+  h1 "hello " + name
+  h2 now
+
+name = "world"
+i = 1
+
+setInterval (fn () name = "world" + i ; i++ ) 1000

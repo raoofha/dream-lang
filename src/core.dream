@@ -1,0 +1,6 @@
+# deftypeconstructor2 ( ) List
+# deftypeconstructor2 [ ] Vector
+# deftypeconstructor2 { } Map
+# deftypeconstructor2 " " String
+
+def = def

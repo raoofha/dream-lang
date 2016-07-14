@@ -1,0 +1,56 @@
+a = 2
+a = 2
+parser.parse("234")
+parser.parse("234")
+console.log "asd"
+console.log "asd"
+_ = 4
+_ = 4
+_
+_
+zxcvs
+zxcvs
+zxcvs
+zxcvs
+a
+a
+a
+a
+0
+0
+0
+0
+x = 2
+x = 2
+x = 2
+x = 2
+asdfsdf
+asdfsdf
+asdfsdf
+asdfsdf
+parser.parse("asdf")
+parser.parse("asdf")
+parser.parse("1233")
+parser.parse("1233")
+parser.readtoken("1233")
+parser.readtoken("1233")
+parser.parse("1233")
+parser.parse("1233")
+parser.parse("[234 234]")
+parser.parse("[234 234]")
+parser.parse("[ 234 234 ]")
+parser.parse("[ 234 234 ]")
+parser.parse("1233")
+parser.parse("1233")
+(new Parser).parse("1233")
+(new Parser).parse("1233")
+(new Parser).parse("[ 123 41 ]")
+(new Parser).parse("[ 123 41 ]")
+(new Parser).parse("[ 123 41 ")
+(new Parser).parse("[ 123 41 ")
+(new Parser).parse("[ 123 41 ]")
+(new Parser).parse("[ 123 41 ]")
+(new Parser).parse("[123 41 ]")
+(new Parser).parse("[123 41 ]")
+(new Parser).parse("[123 41]")
+(new Parser).parse("[123 41]")
