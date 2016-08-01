@@ -12,9 +12,13 @@ server.use express.static( __dirname + "/assets")
 server.use "/node_modules", express.static( path.join __dirname , "../node_modules")
 server.use bodyParser.json()
 server.use bodyParser.urlencoded(extended: false)
+server.set "view engine", "ejs"
 #---------------------------------------------------------------------------
 server.use (err, req, res, next)-> res.json { error: err.message }
 #---------------------------------------------------------------------------
+
+server.get "/:projectname", (req, res)->
+  res.render (path.join __dirname, "../src/index.ejs"), {projectname:req.params.projectname}
 
 io.on "connection", (socket)->
   console.log "a user connected"

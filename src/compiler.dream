@@ -1,0 +1,70 @@
+
+defn compileString (code)
+  compileAST (parser.parse code)
+
+defn compileAST (ast)
+  set! ret ""
+  ast.forEach fn (t) (+= ret (compile t))
+  ret
+
+defn- compile (form)
+  
+
+defn- compileFncall (node)
+  set!
+
+defn- compileFn (node)
+  set! ret (+ "function " node.fname "(")
+  set! args []
+  node.args.forEach
+    fn (arg)
+      if (= arg.name "String")
+        args.push arg.value
+      #else if (= arg.name "Map")
+  += ret (args.join ",")
+  += ret ")"
+  ret
+
+
+defn- compileSymbol (node)
+  munge node.value
+
+
+defn munge (name)
+  set! ret ""
+  name.forEach
+    fn (ch)
+      set! s (aget CHAR_MAP ch)
+      if s
+        += ret s
+      else
+        += ret ch
+  ret
+def- CHAR_MAP {
+                '-' "_"
+                ':' "_COLON_"
+                '+' "_PLUS_"
+                '>' "_GT_"
+                '<' "_LT_"
+                '=' "_EQ_"
+                '~' "_TILDE_"
+                '!' "_BANG_"
+                '@' "_ATSIGN_"
+                '#' "_SHARP_"
+                '\'' "_SINGLEQUOTE_"
+                '"' "_DOUBLEQUOTE_"
+                '%' "_PERCENT_"
+                '^' "_CARET_"
+                '&' "_AMPERSAND_"
+                '*' "_STAR_"
+                '|' "_BAR_"
+                '{' "_LBRACE_"
+                '}' "_RBRACE_"
+                '[' "_LBRACK_"
+                ']' "_RBRACK_"
+                '(' "_LPARAN_"
+                ')' "_RPARAN_"
+                '/' "_SLASH_"
+                '\\' "_BSLASH_"
+                '?' "_QMARK_"
+              }

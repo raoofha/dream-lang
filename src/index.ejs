@@ -12,7 +12,16 @@
     </head>
     <body>
       <div id="content"></div>
-        <script src="logicgate.js"></script>
+        <script>
+display = require("./display");
+rx = require("./rx")(display);
+Mouse = require("./mouse");
+Key = require("./key");
+Time = require("./time");
+htags = require("./htags");
+htags.import();
+        </script>
+        <script src="<%= projectname+'/'+projectname %>.js"></script>
         <script>
 //document.body.appendChild(main)
 display.update();

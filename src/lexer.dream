@@ -1,0 +1,160 @@
+def- line 1
+def- column 0
+def- i 0
+
+defn tokenize (code)
+  set! tokens []
+  set! l (readLine)
+  readBlock {:value [] :type "Program"}
+
+defn- readLexeme ()
+  (read)
+  while (= ch " ") (read)
+  switch ch
+    "\n" (readNewline)
+    "\"" (readString)
+    #"#" (readDispatch)
+    "(" (readGroup "List" ")")
+    "[" (readGroup "Array" "]")
+    "{" (readGroup "Map" "}")
+    else
+      (readSymbol)
+
+defn- readLine ()
+  def l (readLexeme)
+  def lexeme {:value [] :type "Line" :loc l.loc}
+  while (and l (!= l.type "Newline"))
+    lexeme.value.push l
+    set! l (readLexeme)
+  if (= lexeme.value.length 0)
+    set! lexeme nil
+  else if (= lexeme.value.length 1)
+    set! lexeme (aget lexeme.value 0)
+    set! lexeme.loc.end l.loc.end
+  else
+    set! lexeme.loc.end l.loc.end
+  lexeme
+
+
+defn- readBlock (lexeme)
+  def indent (- l.loc.start.column 1)
+  while l
+    if (< l.loc.end.column indent) break
+    else if (> l.loc.end.column indent)
+      readBlock previous-l
+    else
+      lexeme.value.push l
+      set! previous-l l
+      set! l (readLine)
+  set! lexeme.loc.end l.loc.end
+  lexeme
+  
+
+defn- readGroup (type closeSym)
+  def lexeme {:value [] :type type :loc {:start {:line line :column column}}}
+  while (!= ch closeSym)
+    if (= ch nil)
+      throw (js.Error. (+ "EOF while reading at line:" lexeme.loc.start.line " column:" lexeme.loc.start.column))
+    lexeme.value.push (readLexeme)
+  set! lexeme.loc.end {:line line :column column}
+  lexeme
+
+defn- readSymbol ()
+  def lexeme {:value "" :type "Symbol" :loc {:start {:line line :column column}}}
+  while (!in ch SPECIAL_CHARS)
+    if (= ch "\\") (read)
+    if (= ch "\n")
+      if (= lexeme.value.length 0)
+        set! lexeme.value "\\"
+      else
+        (unread)
+      break
+    += lexeme.value ch
+    (read)
+  (unread)
+  set! lexeme.loc.end {:line line :column column}
+  if (= lexeme.value "")
+    nil
+  else
+    lexeme
+  
+defn- readDispatch ()
+  (read)
+  switch ch
+    #when " " "!" then (readComment) ; return lexeme
+    "\""
+      set! lexeme (readString)
+      set! lexeme.type "RegExp"
+      lexeme
+    else
+      (readComment)
+      #throw (js.Error. "dispatch not defined")
+defn- readComment ()
+  def lexeme {:value "" :type "Comment" :loc {:start {:line line :column column}}}
+  while (!in ch ["\n" nil]) (read)
+  (unread)
+  set! lexeme.loc.end {:line line :column column}
+  lexeme
+defn- readNewline ()
+  def lexeme
+  while (in ch [" " "\n"])
+    while (= (read) "\n")
+    set! lexeme {:value "" :type "Newline" :loc {:start {:line line :column column}}}
+    while (= ch " ")
+      += lexeme.value ch
+      (read)
+  (unread)
+  set! lexeme.loc.end {:line line :column column}
+  lexeme
+defn- readString ()
+  def lexeme {:value "" :type "String" :loc {:start {:line line :column column}}}
+  while (!= (read) "\"")
+    throw (js.Error. "EOF while reading") if !ch
+    if (= ch "\\")
+      (read)
+      throw (js.Error. "EOF while reading") if !ch
+      switch ch
+        when "t"
+          += lexeme.value "\t"
+        when "n"
+          += lexeme.value "\n"
+        when "f"
+          += lexeme.value "\f"
+        when "b"
+          += lexeme.value "\b"
+        when "r"
+          += lexeme.value "\r"
+        when "\"" "\\"
+          += lexeme.value ch
+      if (or (= ch "u") (Util.isDigit ch))
+        += lexeme.value (readUnicodeChar)
+      else
+        throw (js.Error. (+ "Unsupported escape character: \\" ch))
+    else
+      += lexeme.value ch
+  set! lexeme.loc.end {:line line :column column}
+  lexeme
+
+defn- read ()
+  if (= i code.length)
+    set! ch nil
+    set! column 0
+    return nil
+  set! ch (aget code i)
+  i++
+  if (= ch "\n")
+    set! last-line-column column
+    line++
+    set! column 0
+  else
+    column++
+  ch
+defn- unread ()
+  if (!= i 0) i--
+  if (= column 0)
+    line--
+    set! column last-line-column
+  else
+    column--
+
+def SPECIAL_CHARS ["(" ")" "[" "]" "{" "}" " " "\n" nil]

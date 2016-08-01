@@ -16,6 +16,8 @@ gulp.task "default", ->
     livereload.listen()
 
 
+    #gulp.watch([ "src/client/**/*.coffee" ],follow:true)
+    #watch([ "src/client/**/*.coffee" ], followSymlinks:true)
     watch([ "src/client/**/*.coffee" ])
         #.pipe(coffee(bare: true))
         .pipe(coffee(bare: true).on("error", gutil.log))

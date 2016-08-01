@@ -3,4 +3,13 @@
 # deftypeconstructor2 { } Map
 # deftypeconstructor2 " " String
 
+# def : Symbol a a
 def = def
++ : Number[]... Number
+- : Number[]... Number
+* : Number[]... Number
+/ : Number[]... Number
+
+
++ : (Number|rx.Cell)[]... Number
++ = rx.add
