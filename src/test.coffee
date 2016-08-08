@@ -1,7 +1,9 @@
 
-lexer = require "./lexer"
+compiler = require "./compiler"
 fs = require "fs"
+beautify = require('js-beautify').js_beautify
 
-code = fs.readFileSync "./src/lexer.dream", "utf8"
+code = fs.readFileSync "./src/compiler.dream", "utf8"
 
-console.log JSON.stringify (lexer.tokenize code), null, 4
+#console.log JSON.stringify (compiler.parse code), null, 4
+console.log beautify(compiler.compile code)
