@@ -11,8 +11,7 @@ source = require('vinyl-source-stream')
 gutil = require('gulp-util')
 
 require "coffee-script/register"
-
-gulp.task "default", ->
+gulp.task "watch", ->
     livereload.listen()
 
 
@@ -35,13 +34,13 @@ gulp.task "default", ->
     watch(["src/client/**/*.{html,css}"]).pipe(gulp.dest("dist/assets"))
 
     gulp.watch [ "**/*.{html,css,js}" ], cwd: "dist/assets", livereload.changed
-
-gulp.task "repl", ["default"], ->
-    nodemon( script: "dist/repl.js",ignore: ["dist/assets","src/client"], restartable:false )
+gulp.task "default", ["watch"], ->
+    nodemon( script: "dist/server.js",ignore: ["dist/assets","src/client"], restartable:false)#, stdin:false,stdout:false )
         .on "start", -> console.log "server started."
         .on "restart", -> console.log "server restarted."
-gulp.task "server", ["default"], ->
-    nodemon( script: "dist/server.js",ignore: ["dist/assets","src/client"], restartable:false)#, stdin:false,stdout:false )
+
+gulp.task "repl", ["watch"], ->
+    nodemon( script: "src/repl.coffee",ignore: ["dist/assets","src/client"], restartable:false )
         .on "start", -> console.log "server started."
         .on "restart", -> console.log "server restarted."
 

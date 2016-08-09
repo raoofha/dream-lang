@@ -28,5 +28,5 @@ nesh.loadLanguage 'coffee'
 
 nesh.start {prompt:"> ",welcome:"",historyFile:"history.repl"}, (err, repl) ->
   return nesh.log.error err if err
-  Parser = require("./parser")
-  repl.context.Parser = Parser
+  compiler = require("./compiler")
+  repl.context.compiler = compiler

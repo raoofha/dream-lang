@@ -6,13 +6,13 @@ l = null
 ch = null
 code = ""
 
-compile = (node)->
-  return compile parse node if typeof node is "string"
+compile = (node, opts)->
+  return compile (parse node), opts if typeof node is "string"
   switch node.type
-    when "Program" then rootNode node
+    when "Program" then rootNode node, opts
     when "Symbol" then mung node.value
-    when "Keyword", "Bool", "Nil", "Number" then JSON.stringify node.value
-    when "String" then JSON.stringify node.value
+    when "String", "Keyword", "Bool", "Nil", "Number" then JSON.stringify node.value
+    when "RegExp" then regNode node
     when "Map" then mapNode node
     when "Array" then arrayNode node
     when "Comment" then ""
@@ -27,15 +27,23 @@ compile = (node)->
         when "switch" then switchNode node
         when "set!", "-=", "+=" then assignNode node
         when "=", "!=", "+", "-", "*", "/", "%", "and", "or" then opNode node
+        when "<", ">", "<=", ">=" then (op2Node node)
+        when "in", "!in" then inNode node
         when "!", "not" then notNode node
         when "aget" then agetNode node
         else callNode node
 
-rootNode = (node)->
-  defs = node.value.filter((n)-> n.value[0].value is "def").map (n)-> mung n.value[1].value
-  defs = "module.exports = {" + defs.join() + "}"
+rootNode = (node, opts)->
   body = node.value.map((n)-> compile n).join ";"
-  body + ";" + defs
+  if opts and opts.module
+    defs = node.value.filter((n)-> n.value[0].value is "def").map (n)-> mung n.value[1].value
+    defs = "module.exports = {" + defs.join() + "};"
+    body + ";" + defs
+  else
+    body + ";"
+
+regNode = (node)->
+  "new RegExp(\"" + node.value + "\")"
 
 mapNode = (node)->
   keys = node.value.filter((n,i)-> i % 2 is 0).map (n)-> compile n
@@ -87,13 +95,14 @@ whileNode = (node)->
 
 switchNode = (node)->
   ret = "switch(" + (compile node.value[1]) + "){"
-  node.value.slice(2).forEach (n)->
-    if n.value[0].value isnt "else"
-      i = n.value.findIndex (n)-> n.type is "Line"
-      n.value.slice(0, i).forEach((n)-> ret += "case " + (compile n) + ":")
-      ret += (n.value.slice i).map((n)-> compile n).join(";") + ";break;"
-    else
-      ret += "default:" + n.value[1].value.map((n)-> compile n).join(";") + ";break;"
+  node.value.slice(2).forEach(
+    (n)->
+      if n.value[0].value isnt "else"
+        i = n.value.findIndex (n)-> n.type is "Line"
+        n.value.slice(0, i).forEach((n)-> ret += "case " + (compile n) + ":")
+        ret += (n.value.slice i).map((n)-> compile n).join(";") + ";break;"
+      else
+        ret += "default:" + n.value[1].value.map((n)-> compile n).join(";") + ";break;")
   ret += "}"
 
 assignNode = (node)->
@@ -114,6 +123,25 @@ opNode = (node)->
     op = "!=="
   node.value.slice(1).map((n)-> compile n).join(op)
 
+op2Node = (node)->
+  i = 2
+  ret = []
+  while i <= node.value.length - 1
+    ret.push [(compile node.value[i-1]), compile(node.value[i])]
+    i += 1
+  ret.map((n)-> n[0] + node.value[0].value + n[1]).join "&&"
+
+inNode = (node)->
+  c = compile node.value[1]
+  if node.value[0].value is "in"
+    #(compile node.value[1]) + " in " + (compile node.value[2])
+    #node.value[2].value.map((n)-> c + "===" + compile(n)).join "||"
+    (compile node.value[2]) + ".indexOf(" + (compile node.value[1]) + ")> -1"
+  else
+    #"!(" + (compile node.value[1]) + " in " + (compile node.value[2]) + ")"
+    #node.value[2].value.map((n)-> c + "!==" + compile(n)).join "&&"
+    (compile node.value[2]) + ".indexOf(" + (compile node.value[1]) + ")===-1"
+
 notNode = (node)->
   op = node.value[0].value
   if op is "not"
@@ -132,7 +160,9 @@ callNode = (node)->
       if m.value.startsWith(".-")
         (compile node.value[1]) + "." + mung m.value.substring(2)
       else if m.value.startsWith(".")
-        mung(m.value.substring(1)) + "(" + node.value.slice(1).map((n)-> compile n).join() + ")"
+        #mung(m.value.substring(1)) + "(" + node.value.slice(1).map((n)-> compile n).join() + ")"
+        #"(" + compile(node.value[1]) + ")." + mung(m.value.substring(1)) + "(" + node.value.slice(2).map((n)-> compile n).join() + ")"
+        compile(node.value[1]) + "." + mung(m.value.substring(1)) + "(" + node.value.slice(2).map((n)-> compile n).join() + ")"
       else if m.value.endsWith(".")
         "new " + mung(m.value.substring(0,m.value.length - 1)) + "(" + node.value.slice(1).map((n)-> compile n).join() + ")"
       else
@@ -151,6 +181,57 @@ parse = (c)->
   removeComment ast
   analyseNode ast
   preprocessIf ast
+  markReturn ast
+  markReturnFn ast
+  rewriteReturn ast
+
+markReturn = (node)->
+  switch node.type
+    when "Program" then node.value.forEach (n)-> markReturn n
+    when "Map", "Array","RegExp", "String", "Symbol", "Keyword", "Number", "Bool", "Nil" then node.return = true
+    when "List", "Line"
+      switch node.value[0].value
+        when "def", "def-"
+          if node.value.length > 3
+            markReturn node.value[node.value.length-1]
+        when "switch"
+          (node.value.slice 2).forEach(
+            (n)->
+              if n.value[0].value is "else"
+                elsebody = n.value[1].value
+                markReturn elsebody[elsebody.length-1]
+              else
+                markReturn n.value[n.value.length-1])
+        when "if"
+          ifbody = node.value[2].value
+          markReturn ifbody[ifbody.length-1]
+          (node.value.slice 3).forEach(
+            (n)->
+              if n.value[1].value is "if"
+                markReturn n.value[3].value[n.value[3].value.length-1]
+              else
+                markReturn n.value[1].value[n.value[1].value.length-1])
+        else
+          node.return = true
+
+markReturnFn = (node)->
+  if node.type in ["List", "Line", "Program"]
+    if node.value[0] and node.value[0].value is "fn" and node.value[0].type is "Symbol"
+      markReturn node.value[node.value.length-1]
+    node.value.forEach (n)-> markReturnFn n
+
+rewriteReturn = (node)->
+  if node.return
+    sw = true
+    if node.type in ["List", "Line"] and (node.value[0].value is "throw" or node.value[0].value is "return")
+      sw = false
+    if sw
+      temp = [{value: "return", type: "Symbol"}, {value: node.value, type: node.type, loc: node.loc}]
+      node.type = "List"
+      node.value = temp
+  else if node.type in ["Line", "List", "Program"]
+    node.value.forEach (n)-> rewriteReturn n
+  node
 
 analyseNode = (node)->
   switch node.type
@@ -224,7 +305,7 @@ preprocessIf = (node)->
   allif =
     node.value.reduce(
       (a, n, i)->
-        if n.type is "Line" and n.value[0].value is "if"
+        if n.type is "Line" and n.value[0].value is "if" and n.value[0].type is "Symbol"
           a.push [i, n]
         a
       , [])
@@ -239,7 +320,7 @@ preprocessIf = (node)->
         n.value.push m[0]
       else
         break
-    throw new Error("else without if") if j > -1 and j < l
+    throw new Error("else without if at line:"+node.value[j].loc.start.line+" column:"+node.value[j].loc.start.column) if j > -1 and j < l
   node
 
 analyseMap = (node)->
@@ -251,7 +332,7 @@ analyseArray = (node)->
 analyseSymbol = (node)->
   if node.value is "true" or node.value is "false"
     node.type = "Bool"
-    node.value = Boolean node.value
+    node.value = JSON.parse node.value
   else if node.value is "nil"
     node.type = "Nil"
     node.value = null
