@@ -32,6 +32,6 @@ document.addEventListener "keyup", (e)-> tim.state.set("idle")
 
 main = ->
   div [
-    "hello world"
+    "محمد حسین"
     tim
   ]

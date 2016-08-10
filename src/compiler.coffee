@@ -25,8 +25,8 @@ compile = (node, opts)->
         #when "else" then elseNode node
         when "while" then whileNode node
         when "switch" then switchNode node
-        when "set!", "-=", "+=" then assignNode node
-        when "=", "!=", "+", "-", "*", "/", "%", "and", "or" then opNode node
+        when "set!", "-=", "+=" then "(" + assignNode(node) + ")"
+        when "=", "!=", "+", "-", "*", "/", "%", "and", "or" then "(" + opNode(node) + ")"
         when "<", ">", "<=", ">=" then (op2Node node)
         when "in", "!in" then inNode node
         when "!", "not" then notNode node
@@ -179,11 +179,65 @@ parse = (c)->
   readLine()
   ast = readBlock({value: [], type: "Program",loc:{}})
   removeComment ast
-  analyseNode ast
+  rewriteNode ast
+  rewriteSoloNodeLine ast
+  rewriteInlineIf ast
+  rewriteInlineFn ast
+  #analyseNode ast
   preprocessIf ast
   markReturn ast
   markReturnFn ast
   rewriteReturn ast
+
+rewriteNode = (node)->
+  switch node.type
+    when "Symbol"
+      if node.value is "true" or node.value is "false"
+        node.type = "Bool"
+        node.value = JSON.parse node.value
+      else if node.value is "nil"
+        node.type = "Nil"
+        node.value = null
+      else
+        m = node.value.match NUMBER
+        if m
+          node.value = Number node.value
+          node.type = "Number"
+        else if node.value[0] is ":"
+          node.type = "Keyword"
+          node.value = node.value.substring 1
+    when "Program", "List", "Line", "Map", "Array" then node.value.forEach (t)-> rewriteNode t
+  node
+
+rewriteSoloNodeLine = (node)->
+  if node.type is "Line" and node.value.length is 1
+    temp = node.value[0]
+    rewriteSoloNodeLine temp
+    node.value = temp.value
+    node.type = temp.type
+    node.loc = temp.loc
+  else if node.type in ["Line", "List", "Program"]
+    node.value.forEach (n)-> rewriteSoloNodeLine n
+
+rewriteInlineIf = (node)->
+  if node.type in ["Line", "List", "Program"]
+    if node.value.length > 2 and node.value[node.value.length-2].value is "if" and node.value[node.value.length-2].type is "Symbol"
+      t2 = node.value.pop()
+      t1 = node.value.pop()
+      if node.value.length > 1
+        t3 = { type:"List", value:node.value, loc:{start:node.value[0].loc.start, end:node.value[node.value.length-1].loc.end}}
+      else
+        t3 = node.value[0]
+      node.value = [t1,t2,t3]
+    node.value.forEach (n)-> rewriteInlineIf n
+
+rewriteInlineFn = (node)->
+  if node.type in ["Line", "List", "Program"]
+    i = node.value.findIndex((t)-> t.value is "fn" and t.type is "Symbol")
+    if i > 0
+      fnv = node.value.splice i
+      node.value.push {type:"List", value:fnv, loc:{start:fnv[0].loc.start,end:fnv[fnv.length-1].loc.end}}
+    node.value.forEach (n)-> rewriteInlineFn n
 
 markReturn = (node)->
   switch node.type
@@ -223,7 +277,7 @@ markReturnFn = (node)->
 rewriteReturn = (node)->
   if node.return
     sw = true
-    if node.type in ["List", "Line"] and (node.value[0].value is "throw" or node.value[0].value is "return")
+    if node.type in ["List", "Line"] and Boolean(node.value[0]) and node.value[0].type is "Symbol" and (node.value[0].value is "throw" or node.value[0].value is "return")
       sw = false
     if sw
       temp = [{value: "return", type: "Symbol"}, {value: node.value, type: node.type, loc: node.loc}]
