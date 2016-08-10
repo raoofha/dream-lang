@@ -174,3 +174,9 @@ compiler.compile('def- markReturn (node)')
         else
           set! node.return true
           set! node.return true
+compiler.compile("(+ 1 1)")
+compiler.compile("(+ 1 1)")
+compiler.compile("(+ 1 -1)")
+compiler.compile("(+ 1 -1)")
+compiler.compile("(< 1 -1)")
+compiler.compile("(< 1 -1)")

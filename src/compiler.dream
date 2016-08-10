@@ -34,7 +34,7 @@ def compile (node opts)
         else (callNode node)
 
 def- rootNode (node opts)
-  set! body (.join (node.value.map (fn (n) (compile n))) ";")
+  def body (.join (node.value.map (fn (n) (compile n))) ";")
   if (and opts opts.module)
     set! defs (.map (node.value.filter (fn (n) (= (aget (aget n.value 0) :value) "def"))) (fn (n) (mung (aget (aget n.value 1) :value))))
     set! defs (+ "module.exports = {" (defs.join) "};")
@@ -43,17 +43,18 @@ def- rootNode (node opts)
     + body ";"
 
 def- regNode (node)
-  + "new RegExp(\"" node.value "\")"
+  + "new RegExp(\"" node.value "\",\"" node.flags "\")"
 
 def- mapNode (node)
-  set! keys (.map (node.value.filter (fn (n i) (= (% i 2) 0))) (fn (n) (compile n)))
-  set! vals (.map (node.value.filter (fn (n i) (= (% i 2) 1))) (fn (n) (compile n)))
+  def keys (.map (node.value.filter (fn (n i) (= (% i 2) 0))) (fn (n) (compile n)))
+  def vals (.map (node.value.filter (fn (n i) (= (% i 2) 1))) (fn (n) (compile n)))
   (+ "{" (.join (.map (range vals.length) fn (i) (+ (aget keys i) ":" (aget vals i)))) "}")
 
 def- arrayNode (node)
   (+ "[" (.join (node.value.map fn (n) (compile n))) "]")
 
 def- defNode (node)
+  def ret
   if (= node.value.length 1)
     ""
   else if (= node.value.length 2)
@@ -75,13 +76,13 @@ def- argsNode (node)
   (+ "(" (.join (node.value.map fn (n) n.value)) ")")
   
 def- fnNode (node)
-  set! ret (+ (argsNode (aget node.value 1)) "=>{")
+  def ret (+ (argsNode (aget node.value 1)) "=>{")
   set! ret (+ ret (.join (.map (node.value.slice 2) fn (n) (compile n)) ";") ";}")
 
 def- ifNode (node)
-  set! ret (+ "if(" (compile (aget node.value 1)) "){")
+  def ret (+ "if(" (compile (aget node.value 1)) "){")
   set! ret (+ ret (.join (.map (aget (aget node.value 2) :value) fn (n) (compile n)) ";") ";}")
-  set! ret (+ ret (.join (.map (node.value.slice 3) fn (n) (elseNode n))) "")
+  set! ret (+ ret (.join (.map (node.value.slice 3) fn (n) (elseNode n)) ""))
 
 def- elseNode (node)
   if (= (aget (aget node.value 1) :value) "if")
@@ -90,11 +91,12 @@ def- elseNode (node)
     + "else{" (.join (.map (aget (aget node.value 1) :value) fn (n) (compile n)) ";") ";}"
    
 def- whileNode (node)
-  set! ret (+ "while(" (compile (aget node.value 1)) "){")
+  def ret (+ "while(" (compile (aget node.value 1)) "){")
   set! ret (+ ret (.join (.map (node.value.slice 2) fn (n) (compile n)) ";") ";}")
 
 def- switchNode (node)
-  set! ret (+ "switch(" (compile (aget node.value 1)) "){")
+  def ret (+ "switch(" (compile (aget node.value 1)) "){")
+  def i
   .forEach (.slice node.value 2)
     fn (n)
       if (!= (aget (aget n.value 0) :value) "else")
@@ -102,17 +104,17 @@ def- switchNode (node)
         .forEach (.slice n.value 0 i) (fn (n) (set! ret (+ ret "case " (compile n) ":")))
         set! ret (+ ret (.join (.map (n.value.slice i) fn (n) (compile n)) ";") ";break;")
       else
-        set! ret (+ ret "default:" (.join (.map (aget (aget n.value 1) :value) fn (n) (compile n)) ";break;"))
+        set! ret (+ ret "default:" (.join (.map (aget (aget n.value 1) :value) fn (n) (compile n)) ";") ";break;")
   += ret "}"
 
 def- assignNode (node)
-  set! op (aget (aget node.value 0) :value)
+  def op (aget (aget node.value 0) :value)
   if (= op "set!")
     set! op "="
   (+ (compile (aget node.value 1)) " " op " " (compile (aget node.value 2)))
 
 def- opNode (node)
-  set! op (aget (aget node.value 0) :value)
+  def op (aget (aget node.value 0) :value)
   if (= op "and")
     set! op "&&"
   else if (= op "or")
@@ -124,7 +126,7 @@ def- opNode (node)
   + (.join (.map (.slice node.value 1) fn (n) (compile n)) op)
 
 def- op2Node (node)
-  set! i 2
+  def i 2
   def ret []
   while (<= i (- node.value.length 1))
     ret.push [(compile (aget node.value (- i 1))) (compile (aget node.value i))]
@@ -132,7 +134,7 @@ def- op2Node (node)
   .join (ret.map fn (n) (+ (aget n 0) (aget (aget node.value 0) :value) (aget n 1))) "&&"
 
 def- inNode (node)
-  set! c (compile (aget node.value 1))
+  def c (compile (aget node.value 1))
   if (= (aget (aget node.value 0) :value) "in")
     # + (compile (aget node.value 1)) " in " (compile (aget node.value 2))
     # .join (.map (aget (aget node.value 2) :value) fn (n) (+ c "===" (compile n))) "||"
@@ -143,18 +145,18 @@ def- inNode (node)
     + (compile (aget node.value 2)) ".indexOf(" (compile (aget node.value 1)) ")===-1"
 
 def- notNode (node)
-  set! op (aget (aget node.value 0) :value)
+  def op (aget (aget node.value 0) :value)
   if (= op "not")
     set! op "!"
   + "!" (compile (aget node.value 1))
 
 def- agetNode (node)
-  set! m1 (aget node.value 1)
-  set! m2 (aget node.value 2)
+  def m1 (aget node.value 1)
+  def m2 (aget node.value 2)
   + (compile m1) "[" (compile m2) "]"
 
 def- callNode (node)
-  set! m (aget node.value 0)
+  def m (aget node.value 0)
   switch m.type
     "Symbol"
       if (.startsWith m.value ".-")
@@ -183,13 +185,13 @@ def parse (c)
   rewriteSoloNodeLine ast
   rewriteInlineIf ast
   rewriteInlineFn ast
-  # analyseNode ast
   preprocessIf ast
   markReturn ast
   markReturnFn ast
   rewriteReturn ast
 
 def- rewriteNode (node)
+  def m
   switch node.type
     "Symbol"
       if (or (= node.value "true") (= node.value "false"))
@@ -210,6 +212,7 @@ def- rewriteNode (node)
   node
 
 def- rewriteSoloNodeLine (node)
+  def temp
   if (and (= node.type "Line") (= node.value.length 1))
     set! temp (aget node.value 0)
     rewriteSoloNodeLine temp
@@ -220,6 +223,9 @@ def- rewriteSoloNodeLine (node)
     node.value.forEach fn (n) (rewriteSoloNodeLine n)
 
 def- rewriteInlineIf (node)
+  def t1
+  def t2
+  def t3
   if (in node.type ["Line" "List" "Program"])
     if (and (> node.value.length 2) (= (aget (aget node.value (- node.value.length 2)) :value) "if") (= (aget (aget node.value (- node.value.length 2)) :type) "Symbol"))
       set! t2 (node.value.pop)
@@ -232,6 +238,8 @@ def- rewriteInlineIf (node)
     node.value.forEach fn (n) (rewriteInlineIf n)
 
 def- rewriteInlineFn (node)
+  def i
+  def fnv
   if (in node.type ["Line" "List" "Program"])
     set! i (node.value.findIndex fn (t) (and (= t.value "fn") (= t.type "Symbol")))
     if (> i 0)
@@ -240,6 +248,7 @@ def- rewriteInlineFn (node)
     node.value.forEach fn (n) (rewriteInlineFn n)
 
 def- markReturn (node)
+  def ifbody
   switch node.type
     "Program" (node.value.forEach fn (n) (markReturn n))
     "Map" "Array" "RegExp" "String" "Symbol" "Keyword" "Number" "Bool" "Nil" (set! node.return true)
@@ -251,6 +260,7 @@ def- markReturn (node)
         "switch"
           .forEach (node.value.slice 2)
             fn (n)
+              def elsebody
               if (= (aget (aget n.value 0) :value) "else")
                 set! elsebody (aget (aget n.value 1) :value)
                 markReturn (aget elsebody (- elsebody.length 1))
@@ -275,6 +285,7 @@ def- markReturnFn (node)
     node.value.forEach fn (n) (markReturnFn n)
 
 def- rewriteReturn (node)
+  def sw
   if node.return
     set! sw true
     if (and (in node.type ["List" "Line"]) (aget node.value 0) (= (aget (aget node.value 0) :type) "Symbol") (or (= (aget (aget node.value 0) :value) "throw") (= (aget (aget node.value 0) :value) "return")))
@@ -283,7 +294,7 @@ def- rewriteReturn (node)
       set! temp [{:value "return" :type "Symbol"} {:value node.value :type node.type :loc node.loc}]
       set! node.type "List"
       set! node.value temp
-  else if (in node.type ["Line" "List" "Program"])
+  if (in node.type ["Line" "List" "Program"])
     node.value.forEach fn (n) (rewriteReturn n)
   node
   
@@ -293,44 +304,8 @@ def- rewriteReturn (node)
 #       if (and (in (aget (aget node.value 2) :type)
 #     node.value.forEach fn (n) (rewriteReturn n)
 
-def- analyseNode (node)
-  switch node.type
-    "Program" (node.value.forEach fn (t) (analyseNode t))
-    "Symbol" (analyseSymbol node)
-    "Array" (node.value.forEach fn (t) (analyseNode t))
-    "Map" (node.value.forEach fn (t) (analyseNode t))
-    "List" "Line" (analyseList node)
-  node
-
-def- analyseList (node)
-  if (and (= node.type "Line") (= node.value.length 1))
-    set! temp (aget node.value 0)
-    analyseNode temp
-    set! node.value temp.value
-    set! node.type temp.type
-    set! node.loc temp.loc
-  else
-    node.value.forEach fn (t) (analyseNode t)
-    analyseInlineIf node
-    analyseInlineFn node
-
-def- analyseInlineIf (node)
-  if (and (> node.value.length 2) (= (aget (aget node.value (- node.value.length 2)) :value) "if"))
-    set! t2 (node.value.pop)
-    set! t1 (node.value.pop)
-    if (> node.value.length 1)
-      set! t3 {:type "List" :value node.value :loc {:start (.-loc.start (aget node.value 0)) :end (.-loc.end (aget node.value (- node.value.length 1)))}}
-    else
-      set! t3 (aget node.value 0)
-    set! node.value [t1 t2 t3]
-
-def- analyseInlineFn (node)
-  set! j (node.value.findIndex fn (t) (and (= t.value "fn") (= t.type "Symbol")))
-  if (> j 0)
-    set! fnv (node.value.splice i)
-    node.value.push {:type "List" :value fnv :loc {:start (.-loc.start (aget fnv 0)) :end (.-loc.end (aget fnv (- fnv.length 1)))}}
-
 def- removeComment (node)
+  def i
   switch node.type
     "Line" "List" "Program"
       set! i (node.value.findIndex fn (n) (and (= n.type "Line") (= (aget (aget n.value 0) :type) "Comment")))
@@ -345,8 +320,11 @@ def- removeComment (node)
         removeComment node
 
 def- preprocessIf (node)
+  def k
+  def j
   node.value.forEach
     fn (n)
+      def body
       if (= n.type "Line")
         if (= (aget (aget n.value 0) :type) "Symbol")
           if (= (aget (aget n.value 0) :value) "if")
@@ -362,7 +340,7 @@ def- preprocessIf (node)
             preprocessIf body
             n.value.push body
         preprocessIf n
-  set! allif
+  def allif
     node.value.reduce
       fn (a n i)
         if (and (= n.type "Line") (= (aget (aget n.value 0) :value) "if") (= (aget (aget n.value 0) :type) "Symbol"))
@@ -370,6 +348,9 @@ def- preprocessIf (node)
         a
       []
   set! k -1
+  def l
+  def n
+  def m
   while (< k (- allif.length 1))
     += k 1
     set! l (aget (aget allif k) 0)
@@ -390,6 +371,7 @@ def- analyseArray (node)
   node.value.forEach fn (t) (analyseNode t)
 
 def- analyseSymbol (node)
+  def m
   if (or (= node.value "true") (= node.value "false"))
     set! node.type "Bool"
     set! node.value (js.JSON.parse node.value)
@@ -513,6 +495,10 @@ def- readDispatch ()
     "\""
       set! node (readString)
       set! node.type "RegExp"
+      set! node.value (node.value.replace #"\\\\"g "\\\\")
+      set! node.flags ""
+      if (!in ch SPECIAL_CHARS)
+        set! node.flags (aget (readSymbol) :value)
       node
     else
       # (readComment)
@@ -529,7 +515,7 @@ def- readComment ()
   token
 
 def- readBlockComment ()
-  set! indent (- column 2)
+  def indent (- column 2)
   def token {:value "" :type "Comment" :loc {:start {:line line :column (- column 1)}}}
   while ch
     set! token.value (+ token.value "\n" (readComment))
@@ -573,10 +559,11 @@ def- readString ()
         "\"" "\\"
           += token.value ch
         else
-          if (or (= ch "u") (Util.isDigit ch))
-            += token.value (readUnicodeChar)
-          else
-            throw (js.Error. (+ "Unsupported escape character: \\" ch))
+          # if (or (= ch "u") (Util.isDigit ch))
+          #   += token.value (readUnicodeChar)
+          # else
+          #   throw (js.Error. (+ "Unsupported escape character: \\" ch))
+          += token.value ch
     else
       += token.value ch
   set! token.loc.end {:line line :column column}
@@ -607,7 +594,7 @@ def- unread ()
       -= column 1
 
 def- mung (name)
-  set! ret ""
+  def ret ""
   name.forEach
     fn (ch)
       set! s (aget CHAR_MAP ch)

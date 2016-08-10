@@ -43,7 +43,7 @@ rootNode = (node, opts)->
     body + ";"
 
 regNode = (node)->
-  "new RegExp(\"" + node.value + "\")"
+  "new RegExp(\"" + node.value + "\",\"" + node.flags + "\")"
 
 mapNode = (node)->
   keys = node.value.filter((n,i)-> i % 2 is 0).map (n)-> compile n
@@ -183,7 +183,6 @@ parse = (c)->
   rewriteSoloNodeLine ast
   rewriteInlineIf ast
   rewriteInlineFn ast
-  #analyseNode ast
   preprocessIf ast
   markReturn ast
   markReturnFn ast
@@ -283,46 +282,9 @@ rewriteReturn = (node)->
       temp = [{value: "return", type: "Symbol"}, {value: node.value, type: node.type, loc: node.loc}]
       node.type = "List"
       node.value = temp
-  else if node.type in ["Line", "List", "Program"]
+  if node.type in ["Line", "List", "Program"]
     node.value.forEach (n)-> rewriteReturn n
   node
-
-analyseNode = (node)->
-  switch node.type
-    when "Program" then node.value.forEach (t)-> analyseNode t
-    when "Symbol" then analyseSymbol node
-    when "Array" then analyseArray node
-    when "Map" then analyseMap node
-    when "List", "Line" then analyseList node
-  node
-
-analyseList = (node)->
-  if node.type is "Line" and node.value.length is 1
-    temp = node.value[0]
-    analyseNode temp
-    node.value = temp.value
-    node.type = temp.type
-    node.loc = temp.loc
-  else
-    node.value.forEach (t)-> analyseNode t
-    analyseInlineIf node
-    analyseInlineFn node
-
-analyseInlineIf = (node)->
-  if node.value.length > 2 and node.value[node.value.length-2].value is "if"
-    t2 = node.value.pop()
-    t1 = node.value.pop()
-    if node.value.length > 1
-      t3 = { type:"List", value:node.value, loc:{start:node.value[0].loc.start, end:node.value[node.value.length-1].loc.end}}
-    else
-      t3 = node.value[0]
-    node.value = [t1,t2,t3]
-
-analyseInlineFn = (node)->
-  i = node.value.findIndex((t)-> t.value is "fn" and t.type is "Symbol")
-  if i > 0
-    fnv = node.value.splice i
-    node.value.push {type:"List", value:fnv, loc:{start:fnv[0].loc.start,end:fnv[fnv.length-1].loc.end}}
 
 removeComment = (node)->
   switch node.type
@@ -505,9 +467,13 @@ readDispatch = ->
     when " " then readComment()
     when "!" then readBlockComment()
     when "\""
-      token = readString()
-      token.type = "RegExp"
-      token
+      node = readString()
+      node.type = "RegExp"
+      node.value = node.value.replace /\\/g , "\\\\"
+      node.flags = ""
+      if ch not in SPECIAL_CHARS
+        node.flags = readSymbol().value
+      node
     else
       #readComment()
       throw new Error "dispatch not defined"
@@ -567,10 +533,11 @@ readString = ->
         when "\"", "\\"
           token.value += ch
         else
-          if ch is "u" and Util.isDigit ch
-            token.value += readUnicodeChar()
-          else
-            throw new Error("Unsupported escape character: \\" + ch)
+          #if ch is "u" and Util.isDigit ch
+          #  token.value += readUnicodeChar()
+          #else
+          #  throw new Error("Unsupported escape character: \\" + ch)
+          token.value += ch
     else
       token.value += ch
   token.loc.end = {line, column}
@@ -642,14 +609,6 @@ CHAR_MAP =
   "\\": "_BSLASH_"
 
 SPECIAL_CHARS = ["(", ")", "[", "]", "{", "}", " ", "\n", null]
-NUMBER =
-  ///^
-  [-+]?
-  ( 0b[01]+                   # binary
-  | 0o[0-7]+                  # octal
-  | 0x[\da-f]+                # hex
-  | \d*\.?\d+ (?:e[+-]?\d+)?  # decimal
-  )
-  $///
+NUMBER = /^[-+]?(0b[01]+|0o[0-7]+|0x[\da-f]+|\d*\.?\d+(?:e[+-]?\d+)?)$/
 
 module.exports = {compile,parse}
