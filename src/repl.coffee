@@ -1,6 +1,7 @@
 #! /usr/bin/coffee
-###
+
 readline = require('readline')
+dream = require("./dream")
 
 rl = readline.createInterface({
   input: process.stdin
@@ -11,22 +12,18 @@ rl = readline.createInterface({
 
 rl.prompt()
 rl.on "line", (q)->
-  console.log q
+  if q
+    try
+      console.log dream.eval q
+      #c = dream.compile q
+      #console.log c
+      #console.log eval c
+    catch e
+      #console.log e.message
+      console.log e
   rl.prompt()
-###
 
 ###
-repl = require("repl")
-
-myrepl = repl.start()
-#  prompt: "> "
+process.stdin.on "data", (d)->
+  process.stdout.write d.toString()
 ###
-
-nesh = require 'nesh'
-
-nesh.loadLanguage 'coffee'
-
-nesh.start {prompt:"> ",welcome:"",historyFile:"history.repl"}, (err, repl) ->
-  return nesh.log.error err if err
-  compiler = require("./compiler")
-  repl.context.compiler = compiler

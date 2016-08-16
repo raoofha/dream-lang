@@ -1,7 +1,0 @@
-
-main = LoginForm { :onClick fn ( { username password confirmpassword } )
-                               app.login { username, password, confirmpassword, }
-                             # loginResult = app.login { username, password, confirmpassword, }
-                               if loginResult
-                                  app.go mainpage
-                 }

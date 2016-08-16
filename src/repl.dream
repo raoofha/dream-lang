@@ -1,0 +1,22 @@
+#! /usr/local/bin/dream
+
+set! readline (require "readline")
+set! dream (require "./dream")
+
+set! rl (readline.createInterface {
+  :input  process.stdin
+  :output process.stdout
+})
+
+(rl.prompt)
+rl.on "line"
+  fn(q)
+    if q
+      try
+        console.log (dream.eval q)
+        # c = dream.compile q
+        # console.log c
+        # console.log eval c
+      catch e
+        console.log e.message
+    (rl.prompt)

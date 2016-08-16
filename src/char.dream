@@ -1,3 +1,0 @@
-def SPACE " "
-def NEWLINE "\n"
-def EOF nil
