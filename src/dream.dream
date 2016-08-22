@@ -16,7 +16,9 @@ def compile (node opts)
       return (+ "module.exports = (function (window,global,js,console){" csource
                 "return {" (defs.join) "};})(undefined,undefined,global,console);")
     else
-      return csource
+      return (+ "(function (window,global,js,console){" csource
+                "})(undefined,undefined,global,console);")
+      # return csource
   switch node.type
     # "Program" (programNode node opts)
     "Symbol" (mung node.value)
@@ -100,17 +102,6 @@ def- fnNode (node)
 def- doNode(node)
   + (.join (.map (node.value.slice 1) fn(n) (compile n)) ";") ";"
 
-    # def- ifNode (node)
-    #   def ret (+ "if(" (compile (aget node.value 1)) "){")
-    #   set! ret (+ ret (.join (.map (aget (aget node.value 2) :value) fn (n) (compile n)) ";") ";}")
-    #   set! ret (+ ret (.join (.map (node.value.slice 3) fn (n) (elseNode n)) ""))
-    # 
-    # def- elseNode (node)
-    #   if (= (aget (aget node.value 1) :value) "if")
-    #     + "else if(" (compile (aget node.value 2)) "){" (.join (.map (aget (aget node.value 3) :value) fn (n) (compile n)) ";") ";}"
-    #   else
-    #     + "else{" (.join (.map (aget (aget node.value 1) :value) fn (n) (compile n)) ";") ";}"
-
 def- ifNode (node)
   def ret (+ "if(" (compile (aget node.value 1)) "){")
   += ret (compile (aget node.value 2))
@@ -133,19 +124,6 @@ def- tryNode(node)
 def- whileNode (node)
   def ret (+ "while(" (compile (aget node.value 1)) "){")
   set! ret (+ ret (.join (.map (node.value.slice 2) fn (n) (compile n)) ";") ";}")
-
-# def- switchNode (node)
-#   def ret (+ "switch(" (compile (aget node.value 1)) "){")
-#   def i
-#   .forEach (.slice node.value 2)
-#     fn (n)
-#       if (!= (aget (aget n.value 0) :value) "else")
-#         set! i (n.value.findIndex fn (n) (= n.type "Line"))
-#         .forEach (.slice n.value 0 i) (fn (n) (set! ret (+ ret "case " (compile n) ":")))
-#         set! ret (+ ret (.join (.map (n.value.slice i) fn (n) (compile n)) ";") ";break;")
-#       else
-#         set! ret (+ ret "default:" (.join (.map (aget (aget n.value 1) :value) fn (n) (compile n)) ";") ";break;")
-#   += ret "}"
 
 def- switchNode (node)
   def ret (+ "switch(" (compile (aget node.value 1)) "){")
@@ -243,7 +221,6 @@ def parse (c)
   (readLine)
   set! ast (readBlock {:value [{:value "do" :type "Symbol"}] :type "Line" :root true :loc {}})
   removeComment ast
-  # rewriteSymbol ast
   rewriteSoloNodeLine ast
   rewriteInlineIf ast
   rewriteInlineFn ast
@@ -255,33 +232,11 @@ def parse (c)
   rewriteReturn ast
 
 def- clean (code)
-  # .replace (code.replace #"\\r\\f"g "") #"\\t"g " "
   .replace (code.replace #"\r\f"g "") #"\t"g " "
-
-def- rewriteSymbol (node)
-  def m
-  switch node.type
-    "Symbol"
-      if (or (= node.value "true") (= node.value "false"))
-        set! node.type "Bool"
-        set! node.value (js.JSON.parse node.value)
-      else if (= node.value "nil")
-        set! node.type "Nil"
-        set! node.value null
-      else
-        set! m (node.value.match NUMBER)
-        if m
-          set! node.value (Number node.value)
-          set! node.type "Number"
-        else if (= (aget node.value 0) ":")
-          set! node.type "Keyword"
-          set! node.value (node.value.substring 1)
-    "List" "Line" "Map" "Array" (node.value.forEach fn (t) (rewriteSymbol t))
-  node
 
 def- rewriteSoloNodeLine (node)
   def temp
-  if (and (= node.type "Line") (= node.value.length 1))
+  if (and (= node.type "Line") (= node.value.length 1) (!= (aget (aget node.value 0) :value) "do"))
     set! temp (aget node.value 0)
     rewriteSoloNodeLine temp
     set! node.value temp.value
@@ -312,38 +267,37 @@ def- rewriteInlineFn (node)
     set! i (node.value.findIndex fn (t) (and (= t.value "fn")))
     if (> i 0)
       set! fnv (node.value.splice i)
-      node.value.push {:type "List" :value fnv :loc {:start (.-loc.start (aget fnv 0)) :end (.-loc.end (aget fnv (- fnv.length 1)))}}
+      node.value.push {:type "Line" :value fnv :loc {:start (.-loc.start (aget fnv 0)) :end (.-loc.end (aget fnv (- fnv.length 1)))}}
     node.value.forEach fn (n) (rewriteInlineFn n)
 
 def- rewriteSwitch (node)
   if (= node.type "Line")
     if (= (aget (aget node.value 0) :value) "switch")
-      .forEach (node.value.splice 2)
-        fn(n i)
-          def j (n.value.findIndex fn (n) (= n.type "Line"))
-          if (!= (aget (aget n.value 0) :value) "do")
-            def body (n.value.splice j)
-            if (= body.length 1)
-              set! body (aget body 0)
-            else
-              set! body {:value (.concat [{:value "do" :type "Symbol"}] body) :type "Line"}
-            if (= n.value.length 1)
-              set! n (aget n.value 0)
-              node.value.push n
-            else if (> n.value.length 1)
-              set! n.type "List"
-              node.value.push n
-            # else
-            #  set! n {:value n.value :type "List"}
-            node.value.push body
+      .forEach (node.value.splice 2) fn(n i)
+        def j (n.value.findIndex fn (n) (= n.type "Line"))
+        if (!= (aget (aget n.value 0) :value) "do")
+          def body (n.value.splice j)
+          if (= body.length 1)
+            set! body (aget body 0)
           else
+            set! body {:value (.concat [{:value "do" :type "Symbol"}] body) :type "Line"}
+          if (= n.value.length 1)
+            set! n (aget n.value 0)
             node.value.push n
+          else if (> n.value.length 1)
+            set! n.type "List"
+            node.value.push n
+          # else
+          #  set! n {:value n.value :type "List"}
+          node.value.push body
+        else
+          node.value.push n
     node.value.forEach fn(n) (rewriteSwitch n)
 
 def- markReturn (node disabled)
   def ifbody
-  if node.root
-    return (node.value.forEach fn (n) (markReturn n true))
+  # if node.root
+  #   return (node.value.forEach fn (n) (markReturn n true))
   switch node.type
     # "Program" (node.value.forEach fn (n) (markReturn n true))
     "Map" "Array" "RegExp" "String" "Symbol" "Keyword" "Number" "Bool" "Nil"
@@ -355,32 +309,15 @@ def- markReturn (node disabled)
           if (> node.value.length 3)
             markReturn (aget node.value (- node.value.length 1))
         "switch"
-          .forEach (node.value.slice 2)
-            fn (n i)
-              if (or (= (% i 2) 1) (= i (- node.value.length 3)))
-                markReturn n
-          # .forEach (node.value.slice 2)
-          #   fn (n)
-          #     def elsebody
-          #     if (= (aget (aget n.value 0) :value) "else")
-          #       set! elsebody (aget (aget n.value 1) :value)
-          #       markReturn (aget elsebody (- elsebody.length 1))
-          #     else
-          #       markReturn (aget n.value (- n.value.length 1))
+          .forEach (node.value.slice 2) fn (n i)
+            if (or (= (% i 2) 1) (= i (- node.value.length 3)))
+              markReturn n
         "do"
           markReturn (aget node.value (- node.value.length 1))
         "if"
           markReturn (aget node.value 2)
           if (aget node.value 3)
             markReturn (aget node.value 3)
-          # set! ifbody (aget (aget node.value 2) :value)
-          # markReturn (aget ifbody (- ifbody.length 1))
-          # .forEach (node.value.slice 3)
-          #   fn (n)
-          #     if (= (aget (aget n.value 1) :value) "if")
-          #       markReturn (aget (aget (aget n.value 3) :value) (- (aget (aget (aget n.value 3) :value) :length) 1))
-          #     else
-          #       markReturn (aget (aget (aget n.value 1) :value) (- (aget (aget (aget n.value 1) :value) :length) 1))
         else
           if (not disabled)
             set! node.return true
@@ -427,76 +364,31 @@ def- removeComment (node)
         node.value.splice i 1
         removeComment node
 
-# def- rewriteIfElse (node)
-#   def k
-#   def j
-#   node.value.forEach
-#     fn (n)
-#       def body
-#       if (= n.type "Line")
-#         if (= (aget (aget n.value 0) :value) "if")
-#           set! body {:value (n.value.splice 2) :type "List"}
-#           rewriteIfElse body
-#           n.value.push body
-#         else if (= (aget (aget n.value 0) :value) "else")
-#           if (= (aget (aget n.value 1) :value) "if")
-#             set! k 3
-#           else
-#             set! k 1
-#           set! body {:value (n.value.splice k) :type "List"}
-#           rewriteIfElse body
-#           n.value.push body
-#         rewriteIfElse n
-#   def allif
-#     node.value.reduce
-#       fn (a n i)
-#         if (and (= n.type "Line") (= (aget (aget n.value 0) :value) "if") (= (aget (aget n.value 0) :type) "Symbol"))
-#           a.push [i n]
-#         a
-#       []
-#   set! k -1
-#   def l
-#   def n
-#   def m
-#   while (< k (- allif.length 1))
-#     += k 1
-#     set! l (aget (aget allif k) 0)
-#     set! n (aget (aget allif k) 1)
-#     while (> (set! j (node.value.findIndex fn (n) (and (= n.type "Line") (= (aget (aget n.value 0) :value) "else")))) -1)
-#       if (= j (+ l 1))
-#         set! m (node.value.splice j 1)
-#         n.value.push (aget m 0)
-#       else
-#         break
-#     throw (js.Error. (+ "else without if at line:" (.-loc.start.line (aget node.value j)) " column:" (.-loc.start.column (aget node.value j)))) if (and (< j l) (> j -1))
-#   node
-
 def- rewriteIfElse (node)
   def k
   def j
   def n
-  node.value.forEach
-    fn (n)
-      def body
-      if (= n.type "Line")
+  node.value.forEach fn (n)
+    def body
+    if (= n.type "Line")
+      if (= (aget (aget n.value 0) :value) "if")
+        set! body [{:value "do" :type "Symbol"}]
+        set! body {:value (body.concat (n.value.splice 2)) :type "Line"}
+        # rewriteIfElse body
+        n.value.push body
+      else if (= (aget (aget n.value 0) :value) "else")
+        n.value.splice 0 1
+        set! n.elseif true
+        set! body [{:value "do" :type "Symbol"}]
         if (= (aget (aget n.value 0) :value) "if")
-          set! body [{:value "do" :type "Symbol"}]
-          set! body {:value (body.concat (n.value.splice 2)) :type "Line"}
-          # rewriteIfElse body
+          set! k 2
+          set! body {:value (body.concat (n.value.splice k)) :type "Line"}
           n.value.push body
-        else if (= (aget (aget n.value 0) :value) "else")
-          n.value.splice 0 1
-          set! n.elseif true
-          set! body [{:value "do" :type "Symbol"}]
-          if (= (aget (aget n.value 0) :value) "if")
-            set! k 2
-            set! body {:value (body.concat (n.value.splice k)) :type "Line"}
-            n.value.push body
-          else
-            set! k 0
-            set! n.value (body.concat (n.value.splice k))
-          # rewriteIfElse body
-        rewriteIfElse n
+        else
+          set! k 0
+          set! n.value (body.concat (n.value.splice k))
+        # rewriteIfElse body
+      rewriteIfElse n
 
   def i (- node.value.length 1)
   while (> i 0)
@@ -552,13 +444,11 @@ def- readLine ()
     set! l nil
     return nil
   def token {:value [] :type "Line" :loc ll.loc}
-  if ll.bcomment
-    token.value.push ll
-    set! l token
-    return token
-  while (and ll (!= ll.type "Newline"))
+  while (and ll (!= ll.type "Newline") (not ll.bcomment))
     token.value.push ll
     set! ll (readToken)
+  if (and ll ll.bcomment)
+    token.value.push ll
   set! ll (aget token.value (- token.value.length 1))
   set! token.loc.end ll.loc.end
   set! l token
@@ -566,7 +456,7 @@ def- readLine ()
 
 
 def- readBlock (token)
-  return nil if (not l)
+  return token if (not l)
   set! token.loc.start l.loc.start
   def indent l.loc.start.column
   def previous-l
@@ -690,17 +580,6 @@ def- readBlockComment ()
     set! t (readToken)
   set! token.loc.end {:line line :column column}
   token
-  # (readLine)
-  # readBlock token
-  # while ch
-  #   set! token.value (+ token.value "\n" (readComment))
-  #   set! nl (readNewline)
-  #   break if (<= nl.loc.end.column indent)
-  # (unread)
-  # set! token.loc.end {:line line :column column}
-  # (read)
-  # token
-
 
 def- readNewline ()
   while (in ch [" " "\n"])
@@ -720,25 +599,6 @@ def- readString ()
     if (= ch "\\")
       (read)
       throw (js.Error. "EOF while reading") if (! ch)
-      # switch ch
-      #   "t"
-      #     += token.value "\t"
-      #   "n"
-      #     += token.value "\n"
-      #   "f"
-      #     += token.value "\f"
-      #   "b"
-      #     += token.value "\b"
-      #   "r"
-      #     += token.value "\r"
-      #   "\"" "\\"
-      #     += token.value ch
-      #   else
-      #     # if (or (= ch "u") (Util.isDigit ch))
-      #     #   += token.value (readUnicodeChar)
-      #     # else
-      #     #   throw (js.Error. (+ "Unsupported escape character: \\" ch))
-      #     += token.value ch
       += token.value "\\"
       += token.value ch
     else
@@ -776,13 +636,12 @@ def- unread ()
 
 def- mung (name)
   def ret ""
-  name.forEach
-    fn (ch)
-      set! s (aget CHAR_MAP ch)
-      if s
-        += ret s
-      else
-        += ret ch
+  name.forEach fn (ch)
+    set! s (aget CHAR_MAP ch)
+    if s
+      += ret s
+    else
+      += ret ch
   ret
 
 def- range (n)
@@ -793,13 +652,12 @@ def- range (n)
     += i 1
   ret
 
-set! js.String.prototype.forEach
-  fn (f)
-    def i 0
-    while (< i this.length)
-      f (aget this i)
-      += i 1
-    undefined
+set! js.String.prototype.forEach fn (f)
+  def i 0
+  while (< i this.length)
+    f (aget this i)
+    += i 1
+  undefined
 
 def- CHAR_MAP {
   "-" "_"

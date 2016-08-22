@@ -2,7 +2,7 @@ dream : yet another js transpiler
 ----------------------------------------------
 it can compile itself but not much to expect from **v0.0.0**
 
-**dream** is a language between clojurescript and coffeescript
+**dream** is a small language between clojurescript and coffeescript
 ```
 def hello(name)
   console.log "hello" name
@@ -13,6 +13,8 @@ if true
   (foo)
 else
   (bar)
+# or
+(if true (foo) (bar))
 # ------------------------------------------
 switch node.value
   "String" (stringNode)
@@ -20,6 +22,11 @@ switch node.value
     js.JSON.stringify node.value
   else
     (callNode)
+# or
+(switch node.value
+  "String" (stringNode)
+  ("Keyword" "Bool") (js.JSON.stringify node.value)
+  (callNode))
 # ------------------------------------------
 set! i 0
 while (< i node.value.length)
@@ -28,9 +35,10 @@ while (< i node.value.length)
     break
   += i 1
 # ------------------------------------------ 
-# this is a comment that begins with a # and a space
-#!this is also a comment, it supposed to
-  be a block comment but not implemented yet 
+# comments begins with a # and a space
+#!this is
+  a block
+  comment
 # ------------------------------------------
 set! node.value (node.value.replace #"\\"g "\\\\")
 # or
@@ -38,6 +46,8 @@ set! node.value (node.value.replace #re"\\\\"g "\\\\")
 ```
 todo
 ------
+- test
+- special syntax for require
 - infix operator
 - deconstructor
 - default parameters

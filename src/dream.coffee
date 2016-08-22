@@ -97,17 +97,6 @@ fnNode = (node)->
 doNode = (node)->
   node.value.slice(1).map((n)-> compile n).join(";")+";"
 
-# ifNode = (node)->
-#   ret = "if(" + (compile node.value[1]) + "){"
-#   ret += node.value[2].value.map((n)-> compile n).join(";") + ";}"
-#   ret += (node.value.slice 3).map((n)-> elseNode n).join("")
-#
-# elseNode = (node)->
-#   if node.value[1].value is "if"
-#     ret = "else if(" + (compile node.value[2]) + "){" + node.value[3].value.map((n)-> compile n).join(";") + ";}"
-#   else
-#     ret = "else{" + node.value[1].value.map((n)-> compile n).join(";") + ";}"
-
 ifNode = (node)->
   ret = "if(" + compile(node.value[1]) + "){"
   ret += compile(node.value[2])
@@ -128,18 +117,6 @@ tryNode = (node)->
 whileNode = (node)->
   ret = "while(" + (compile node.value[1]) + "){"
   ret += (node.value.slice 2).map((n)-> compile n).join(";") + ";}"
-
-# switchNode = (node)->
-#   ret = "switch(" + (compile node.value[1]) + "){"
-#   node.value.slice(2).forEach(
-#     (n)->
-#       if n.value[0].value isnt "else"
-#         i = n.value.findIndex (n)-> n.type is "Line"
-#         n.value.slice(0, i).forEach((n)-> ret += "case " + (compile n) + ":")
-#         ret += (n.value.slice i).map((n)-> compile n).join(";") + ";break;"
-#       else
-#         ret += "default:" + n.value[1].value.map((n)-> compile n).join(";") + ";break;")
-#   ret += "}"
 
 switchNode = (node)->
   ret = "switch(" + compile(node.value[1]) + "){"
@@ -270,7 +247,7 @@ rewriteSymbol = (node)->
   node
 
 rewriteSoloNodeLine = (node)->
-  if node.type is "Line" and node.value.length is 1
+  if node.type is "Line" and node.value.length is 1 and node.value[0].value isnt "do"
     temp = node.value[0]
     rewriteSoloNodeLine temp
     node.value = temp.value
@@ -296,7 +273,7 @@ rewriteInlineFn = (node)->
     i = node.value.findIndex((t)-> t.value is "fn" and t.type is "Symbol")
     if i > 0
       fnv = node.value.splice i
-      node.value.push {type:"List", value:fnv, loc:{start:fnv[0].loc.start,end:fnv[fnv.length-1].loc.end}}
+      node.value.push {type:"Line", value:fnv, loc:{start:fnv[0].loc.start,end:fnv[fnv.length-1].loc.end}}
     node.value.forEach (n)-> rewriteInlineFn n
 
 rewriteSwitch = (node)->
@@ -342,27 +319,12 @@ markReturn = (node, disabled)->
             (n, i)->
               if i%2 is 1 or i is node.value.length - 3
                 markReturn n)
-          # (node.value.slice 2).forEach(
-          #   (n)->
-          #     if n.value[0].value is "else"
-          #       elsebody = n.value[1].value
-          #       markReturn elsebody[elsebody.length-1]
-          #     else
-          #       markReturn n.value[n.value.length-1])
         when "do"
           markReturn node.value[node.value.length-1]
         when "if"
           markReturn node.value[2]
           if node.value[3]
             markReturn node.value[3]
-          # ifbody = node.value[2].value
-          # markReturn ifbody[ifbody.length-1]
-          # (node.value.slice 3).forEach(
-          #   (n)->
-          #     if n.value[1].value is "if"
-          #       markReturn n.value[3].value[n.value[3].value.length-1]
-          #     else
-          #       markReturn n.value[1].value[n.value[1].value.length-1])
         else
           if not disabled
             node.return = true
@@ -399,45 +361,6 @@ removeComment = (node)->
       else
         node.value.splice i, 1
         removeComment node
-
-# rewriteIfElse = (node)->
-#   node.value.forEach(
-#     (n)->
-#       if n.type is "Line"
-#         if n.value[0].type is "Symbol"
-#           if n.value[0].value is "if"
-#             body = {value: n.value.splice(2), type: "List"}
-#             rewriteIfElse body
-#             n.value.push body
-#           else if n.value[0].value is "else"
-#             if n.value[1].value is "if"
-#               k = 3
-#             else
-#               k = 1
-#             body = {value: n.value.splice(k), type: "List"}
-#             rewriteIfElse body
-#             n.value.push body
-#         rewriteIfElse n)
-#   allif =
-#     node.value.reduce(
-#       (a, n, i)->
-#         if n.type is "Line" and n.value[0].value is "if" and n.value[0].type is "Symbol"
-#           a.push [i, n]
-#         a
-#       , [])
-#   k = -1
-#   while k < allif.length - 1
-#     k += 1
-#     l = allif[k][0]
-#     n = allif[k][1]
-#     while (j = node.value.findIndex (n)-> n.type is "Line" and n.value[0].value is "else") > -1
-#       if j is l + 1
-#         m = node.value.splice j, 1
-#         n.value.push m[0]
-#       else
-#         break
-#     throw new Error("else without if at line:"+node.value[j].loc.start.line+" column:"+node.value[j].loc.start.column) if j > -1 and j < l
-#   node
 
 rewriteIfElse = (node)->
   node.value.forEach(
@@ -514,21 +437,18 @@ readLine = ->
     l = null
     return null
   token = {value: [], type: "Line", loc: ll.loc}
-  if ll.bcomment
-    token.value.push ll
-    l = token
-    return token
-  while ll and ll.type isnt "Newline"
+  while ll and ll.type isnt "Newline" and not ll.bcomment
     token.value.push ll
     ll = readToken()
+  if ll and ll.bcomment
+    token.value.push ll
   ll = token.value[token.value.length-1]
   token.loc.end = ll.loc.end
   l = token
   token
 
-
 readBlock = (token)->
-  return null if not l
+  return token if not l
   token.loc.start = l.loc.start
   indent = l.loc.start.column
   while l
@@ -544,7 +464,6 @@ readBlock = (token)->
   else
     token.loc.end = previous_l.loc.end
   token
-  
 
 readGroup = (type, closeSym)->
   token = {value: [], type, loc: {start: {line, column}}}
@@ -646,17 +565,6 @@ readBlockComment = ->
     t = readToken()
   token.loc.end = {line, column}
   token
-  #readLine()
-  #readBlock token
-  #while ch
-  #  token.value += "\n" + readComment()
-  #  nl = readNewline()
-  #  break if nl.loc.end.column <= indent
-  #unread()
-  #token.loc.end = {line, column}
-  #read()
-  #token
-
 
 readNewline = ->
   while ch in [" ", "\n"]
@@ -676,25 +584,6 @@ readString = ->
     if ch is "\\"
       read()
       throw new Error("EOF while reading") if !ch
-      #switch ch
-      #  when "t"
-      #    token.value += "\t"
-      #  when "n"
-      #    token.value += "\n"
-      #  when "f"
-      #    token.value += "\f"
-      #  when "b"
-      #    token.value += "\b"
-      #  when "r"
-      #    token.value += "\r"
-      #  when "\"", "\\"
-      #    token.value += ch
-      #  else
-      #    #if ch is "u" and Util.isDigit ch
-      #    #  token.value += readUnicodeChar()
-      #    #else
-      #    #  throw new Error("Unsupported escape character: \\" + ch)
-      #    token.value += ch
       token.value += "\\"
       token.value += ch
     else
