@@ -1,6 +1,5 @@
 {
   "name": "dream-lang",
-  "private": true,
   "version": "0.0.0",
   "description": "",
   "main": "dist/dream.js",

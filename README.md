@@ -44,6 +44,10 @@ set! node.value (node.value.replace #"\\"g "\\\\")
 # or
 set! node.value (node.value.replace #re"\\\\"g "\\\\")
 ```
+
+there is a gulp plugin [here](https://github.com/raoofha/gulp-dream)
+and a vim plugin [here](https://github.com/raoofha/dream-vim)
+
 todo
 ------
 - test
